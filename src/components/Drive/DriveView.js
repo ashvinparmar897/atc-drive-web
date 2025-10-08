@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Grid, 
-  Breadcrumbs, 
+import {
+  Box,
+  Grid,
+  Breadcrumbs,
   Link,
   Button,
   Stack,
@@ -48,7 +48,7 @@ import FolderCard from './FolderCard';
 import FileCard from './FileCard';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function DriveView({ currentFolder, onFolderClick, onFileClick, onUpload, onCreateFolder, onFileOperation }) {
+export default function DriveView({ currentFolder, onFolderClick, onFileClick, onUpload, onCreateFolder }) {
   const [items, setItems] = useState([]);
   const [breadcrumbs, setBreadcrumbs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +64,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   const [editItem, setEditItem] = useState(null);
   const [newName, setNewName] = useState('');
   const [editError, setEditError] = useState('');
+  const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
   const { user } = useAuth();
 
   const canEdit = user?.role === 'admin' || user?.role === 'editor';
@@ -79,7 +80,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
 
   const filteredAndSortedItems = React.useMemo(() => {
     let filtered = items;
-    
     if (searchQuery) {
       filtered = items.filter(item => {
         const searchTerm = searchQuery.toLowerCase();
@@ -87,10 +87,10 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
         return itemName.includes(searchTerm);
       });
     }
-    
+
     filtered.sort((a, b) => {
       let aValue, bValue;
-      
+
       switch (sortBy) {
         case 'name':
           aValue = (a.name || a.filename || '').toLowerCase();
@@ -112,14 +112,12 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           aValue = a.name || a.filename || '';
           bValue = b.name || b.filename || '';
       }
-      
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
         return aValue < bValue ? 1 : -1;
       }
     });
-    
     return filtered;
   }, [items, searchQuery, sortBy, sortOrder]);
 
@@ -137,8 +135,11 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   });
 
   useEffect(() => {
-    fetchItems();
-    updateBreadcrumbs();
+    if (currentFolder !== undefined) {
+      setItems([]);
+      fetchItems();
+      updateBreadcrumbs();
+    }
   }, [currentFolder]);
 
   useEffect(() => {
@@ -150,22 +151,20 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
     setError('');
     try {
       const folderId = currentFolder?.id;
-      
-      const foldersRes = await api.get(
-        folderId ? `/api/folders/?parent_id=${folderId}` : `/api/folders/`
-      );
-      const filesRes = await api.get(
-        folderId ? `/api/files/?folder_id=${folderId}` : `/api/files/`
-      );
-      
-      const folders = foldersRes.data.map(f => ({ ...f, type: 'folder' }));
-      const files = filesRes.data.map(f => ({ ...f, type: 'file' }));
-      
+
+      const [foldersRes, filesRes] = await Promise.all([
+        api.get(folderId ? `/api/folders/?parent_id=${folderId}` : `/api/folders/`),
+        api.get(folderId ? `/api/files/?folder_id=${folderId}` : `/api/files/`)
+      ]);
+
+      const folders = foldersRes?.data.map(f => ({ ...f, type: 'folder' }));
+      const files = filesRes?.data.map(f => ({ ...f, type: 'file' }));
+
       setItems([...folders, ...files]);
     } catch (error) {
       console.error('Error fetching items:', error);
       const errorMessage = error.response?.data?.detail || 'Failed to fetch items';
-      setError(errorMessage === 'Insufficient permissions' 
+      setError(errorMessage === 'Insufficient permissions'
         ? 'You do not have access to view these folders or files. Contact an admin for access.'
         : errorMessage);
     } finally {
@@ -182,14 +181,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
     }
     crumbs.unshift({ id: 'root', name: 'My Drive' });
     setBreadcrumbs(crumbs);
-  };
-
-  const handleItemClick = (item) => {
-    if (item.type === 'folder') {
-      onFolderClick(item);
-    } else {
-      onFileClick(item);
-    }
   };
 
   const handleBreadcrumbClick = (crumb, index) => {
@@ -220,8 +211,8 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   };
 
   const handleFolderUpdated = (updatedFolder) => {
-    setItems(prev => prev.map(item => 
-      item.id === updatedFolder.id && item.type === 'folder' 
+    setItems(prev => prev.map(item =>
+      item.id === updatedFolder.id && item.type === 'folder'
         ? { ...updatedFolder, type: 'folder' }
         : item
     ));
@@ -232,8 +223,8 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   };
 
   const handleFileUpdated = (updatedFile) => {
-    setItems(prev => prev.map(item => 
-      item.id === updatedFile.id && item.type === 'file' 
+    setItems(prev => prev.map(item =>
+      item.id === updatedFile.id && item.type === 'file'
         ? { ...updatedFile, type: 'file' }
         : item
     ));
@@ -263,7 +254,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
       handleEditClose();
       return;
     }
-
     try {
       if (editItem.type === 'folder') {
         await api.put(`/api/folders/${editItem.id}`, {
@@ -347,11 +337,11 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
             </Button>
           </>
         )}
-        
+
         <Box sx={{ flexGrow: 1 }} />
-        
+
         <Tooltip title="Grid View">
-          <IconButton 
+          <IconButton
             onClick={() => setViewMode('grid')}
             color={viewMode === 'grid' ? 'primary' : 'default'}
           >
@@ -359,14 +349,13 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           </IconButton>
         </Tooltip>
         <Tooltip title="List View">
-          <IconButton 
+          <IconButton
             onClick={() => setViewMode('list')}
             color={viewMode === 'list' ? 'primary' : 'default'}
           >
             <ListIcon />
           </IconButton>
         </Tooltip>
-        
         <TextField
           size="small"
           placeholder="Search files and folders..."
@@ -377,17 +366,18 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           }}
           sx={{ minWidth: 200 }}
         />
-        
+
         <Tooltip title="Sort">
-          <IconButton onClick={() => setSortMenuOpen(true)}>
+          <IconButton onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}>
             <SortIcon />
           </IconButton>
+
         </Tooltip>
-        
+
         <Menu
-          anchorEl={sortMenuOpen}
-          open={Boolean(sortMenuOpen)}
-          onClose={() => setSortMenuOpen(false)}
+          anchorEl={sortMenuAnchorEl}
+          open={Boolean(sortMenuAnchorEl)}
+          onClose={() => setSortMenuAnchorEl(null)}
         >
           <MenuItem onClick={() => { setSortBy('name'); setSortOrder('asc'); setSortMenuOpen(false); }}>
             Name (A-Z)
@@ -437,8 +427,8 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
             <Typography variant="h6" color="primary">Drop files and folders here...</Typography>
           ) : (
             <Typography variant="body1" color="text.secondary">
-              {currentFolder 
-                ? "Drag & drop files and folders here to upload" 
+              {currentFolder
+                ? "Drag & drop files and folders here to upload"
                 : "Select a folder first to upload files"
               }
             </Typography>
@@ -514,8 +504,8 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
                       {item.type === 'folder' ? '-' : formatFileSize(item.file_size || 0)}
                     </TableCell>
                     <TableCell>
-                      {item.updated_at || item.created_at ? 
-                        new Date(item.updated_at || item.created_at).toLocaleDateString() : 
+                      {item.updated_at || item.created_at ?
+                        new Date(item.updated_at || item.created_at).toLocaleDateString() :
                         'N/A'
                       }
                     </TableCell>

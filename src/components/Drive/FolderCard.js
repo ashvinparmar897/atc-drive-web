@@ -85,11 +85,6 @@ export default function FolderCard({
       <Card variant="outlined">
         <CardActionArea onClick={() => onFolderClick(folder)}>
           <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Checkbox
-              checked={selected}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => onSelectionChange(folder.id, e.target.checked)}
-            />
             <FolderIcon color="primary" fontSize="large" />
             <Typography variant="subtitle1" noWrap sx={{ flexGrow: 1 }}>
               {folder.name}

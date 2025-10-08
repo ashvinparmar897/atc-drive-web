@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -31,7 +31,7 @@ import api from '../../api/axios';
 const MAX_FILE_SIZE_MB = 100;
 const MAX_FILES = 100;
 
-export default function FileUploadDialog({ open, onClose, folder, onUploadComplete }) {
+export default function FileUploadDialog({ open, onClose, folder, onUploadComplete, initialFiles = [] }) {
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -39,18 +39,24 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
   const [activeTab, setActiveTab] = useState(0);
   const [folderInputRef, setFolderInputRef] = useState(null);
 
-  const onDrop = useCallback((acceptedFiles) => {
-    const newFiles = acceptedFiles.map(file => ({
-      file,
-      name: file.name,
-      size: file.size,
-      status: 'pending', // pending, uploading, success, error
-      progress: 0,
-      isFolder: file.path && file.path.includes('/'),
-      path: file.path || file.name
-    }));
-    setFiles(prev => [...prev, ...newFiles]);
-  }, []);
+
+  useEffect(() => {
+    if (open && initialFiles.length > 0) {
+      const mapped = initialFiles.map(file => ({
+        file,
+        name: file.name,
+        size: file.size,
+        status: 'pending',
+        progress: 0,
+        isFolder: Boolean(file.webkitRelativePath && file.webkitRelativePath.includes('/')),
+        path: file.webkitRelativePath || file.name
+      }));
+      setFiles(mapped);
+    }
+    if (open && initialFiles.length === 0) {
+      setFiles([]); 
+    }
+  }, [open, initialFiles]);
 
   const handleFolderUpload = (event) => {
     const files = Array.from(event.target.files);
@@ -60,15 +66,28 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
       size: file.size,
       status: 'pending',
       progress: 0,
-      isFolder: file.webkitRelativePath && file.webkitRelativePath.includes('/'),
+      isFolder: Boolean(file.webkitRelativePath && file.webkitRelativePath.includes('/')),
       path: file.webkitRelativePath || file.name
     }));
     setFiles(prev => [...prev, ...newFiles]);
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    // Allow all file types like Google Drive
+    onDrop: useCallback((acceptedFiles) => {
+      setFiles(prev => [
+        ...prev,
+        ...acceptedFiles.map(file => ({
+          file,
+          name: file.name,
+          size: file.size,
+          status: 'pending',
+          progress: 0,
+          isFolder: Boolean(file.webkitRelativePath && file.webkitRelativePath.includes('/')),
+          path: file.path || file.name
+        }))
+      ]);
+      console.log('Dropped files:', acceptedFiles);
+    }, []),
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif'],
       'application/pdf': ['.pdf'],
@@ -141,7 +160,7 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
   const validateFiles = () => {
     for (let fileObj of files) {
       const file = fileObj.file;
-      
+
       if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
         setError(`File ${file.name} is too large (max ${MAX_FILE_SIZE_MB}MB)`);
         return false;
@@ -155,15 +174,12 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
       setError('No folder selected. Please select a folder first.');
       return;
     }
-
     if (!validateFiles()) {
       return;
     }
-
     setUploading(true);
     setError('');
     setProgress(0);
-
     try {
       const formData = new FormData();
       files.forEach(fileObj => {
@@ -178,7 +194,6 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
         }
       });
 
-      // Update file statuses
       setFiles(prev => prev.map(fileObj => ({
         ...fileObj,
         status: 'success',
@@ -186,17 +201,11 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
       })));
 
       onUploadComplete(response.data);
-      
-      // Trigger immediate refresh
+
       if (window.refreshDriveView) {
         window.refreshDriveView();
       }
-      
-      // Close dialog after a short delay
-      setTimeout(() => {
-        handleClose();
-      }, 1500);
-
+      handleClose();
     } catch (err) {
       setError(err.response?.data?.detail || 'Upload failed');
       setFiles(prev => prev.map(fileObj => ({
@@ -240,20 +249,17 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
       <DialogTitle>Upload Files & Folders</DialogTitle>
       <DialogContent>
-        {/* Folder Warning */}
         {!folder && (
           <Alert severity="warning" sx={{ mb: 2 }} icon={<WarningIcon />}>
             No folder selected. Please select a folder first to upload files.
           </Alert>
         )}
 
-        {/* Tabs */}
         <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 2 }}>
           <Tab label="Files" />
           <Tab label="Folders" />
         </Tabs>
 
-        {/* Folder Upload Input */}
         {activeTab === 1 && folder && (
           <Box sx={{ mb: 2, textAlign: 'center' }}>
             <input
@@ -279,47 +285,46 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
           </Box>
         )}
 
-        {/* Drop Zone */}
-        <Box
-          {...getRootProps()}
-          sx={{
-            border: '2px dashed',
-            borderColor: isDragActive ? 'primary.main' : 'grey.300',
-            borderRadius: 2,
-            p: 3,
-            textAlign: 'center',
-            mb: 2,
-            backgroundColor: isDragActive ? 'action.hover' : 'transparent',
-            transition: 'all 0.2s',
-            cursor: folder ? 'pointer' : 'not-allowed',
-            opacity: folder ? 1 : 0.5
-          }}
-        >
-          <input {...getInputProps()} disabled={!folder} />
-          <UploadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
-          {isDragActive ? (
-            <Typography variant="h6" color="primary">Drop files and folders here...</Typography>
-          ) : (
-            <>
-              <Typography variant="h6" gutterBottom>
-                {folder ? 'Drag & drop files and folders here' : 'Select a folder first'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {folder ? 'or click to select files and folders' : 'to upload files'}
-              </Typography>
-              {folder && (
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                  All file types supported (max {MAX_FILE_SIZE_MB}MB each, up to {MAX_FILES} files)
+        {activeTab === 0 && (
+          <Box
+            {...getRootProps()}
+            sx={{
+              border: '2px dashed',
+              borderColor: isDragActive ? 'primary.main' : 'grey.300',
+              borderRadius: 2,
+              p: 3,
+              textAlign: 'center',
+              mb: 2,
+              backgroundColor: isDragActive ? 'action.hover' : 'transparent',
+              transition: 'all 0.2s',
+              cursor: folder ? 'pointer' : 'not-allowed',
+              opacity: folder ? 1 : 0.5
+            }}
+          >
+            <input {...getInputProps()} disabled={!folder} />
+            <UploadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
+            {isDragActive ? (
+              <Typography variant="h6" color="primary">Drop files and folders here...</Typography>
+            ) : (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  {folder ? 'Drag & drop files and folders here' : 'Select a folder first'}
                 </Typography>
-              )}
-            </>
-          )}
-        </Box>
+                <Typography variant="body2" color="text.secondary">
+                  {folder ? 'or click to select files and folders' : 'to upload files'}
+                </Typography>
+                {folder && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    All file types supported (max {MAX_FILE_SIZE_MB}MB each, up to {MAX_FILES} files)
+                  </Typography>
+                )}
+              </>
+            )}
+          </Box>
+        )}
 
-        {/* Error Alert */}
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        {/* Progress Bar */}
         {uploading && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2" gutterBottom>Uploading files...</Typography>
@@ -328,7 +333,6 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
           </Box>
         )}
 
-        {/* File List */}
         {files.length > 0 && (
           <Box>
             <Typography variant="h6" gutterBottom>
@@ -344,16 +348,19 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
                     primary={fileObj.name}
                     secondary={formatFileSize(fileObj.size)}
                   />
-                  <Chip 
-                    label={fileObj.isFolder ? 'folder' : fileObj.status} 
-                    size="small" 
-                    color={fileObj.status === 'success' ? 'success' : 
-                           fileObj.status === 'error' ? 'error' : 'default'}
+                  <Chip
+                    label={fileObj.isFolder ? 'folder' : fileObj.status}
+                    size="small"
+                    color={
+                      fileObj.status === 'success' ? 'success' :
+                        fileObj.status === 'error' ? 'error' : 'default'
+                    }
                   />
+
                   {!uploading && (
-                    <Button 
-                      size="small" 
-                      color="error" 
+                    <Button
+                      size="small"
+                      color="error"
                       onClick={() => removeFile(index)}
                       sx={{ ml: 1 }}
                     >
@@ -370,12 +377,12 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
         <Button onClick={handleClose} disabled={uploading}>
           Cancel
         </Button>
-        <Button 
-          onClick={handleUpload} 
-          variant="contained" 
+        <Button
+          onClick={handleUpload}
+          variant="contained"
           disabled={uploading || files.length === 0 || !folder}
         >
-          {uploading ? 'Uploading...' : 'Upload Files & Folders'}
+          {uploading ? 'Uploading...' : 'Upload'}
         </Button>
       </DialogActions>
     </Dialog>

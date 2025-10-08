@@ -95,11 +95,6 @@ export default function FileCard({
       <Card variant="outlined">
         <CardActionArea onClick={() => onFileClick(file)}>
           <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Checkbox
-              checked={selected}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => onSelectionChange(file.id, e.target.checked)}
-            />
             <FileIcon color="action" fontSize="large" />
             <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
               <Typography variant="subtitle1" noWrap>

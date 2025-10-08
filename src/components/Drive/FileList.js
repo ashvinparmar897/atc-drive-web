@@ -14,11 +14,11 @@ export default function FileList({ files, onShare }) {
           </TableRow>
         </TableHead>
         <TableBody>
-          {files.map(file => (
-            <TableRow key={file.id}>
-              <TableCell>{file.filename}</TableCell>
+          {files?.map(file => (
+            <TableRow key={file?.id}>
+              <TableCell>{file?.filename}</TableCell>
               <TableCell>
-                <IconButton href={file.downloadUrl} target="_blank">
+                <IconButton href={file?.downloadUrl} target="_blank">
                   <DownloadIcon />
                 </IconButton>
                 <IconButton onClick={() => onShare(file)}>

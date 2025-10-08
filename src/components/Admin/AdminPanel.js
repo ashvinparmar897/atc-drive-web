@@ -28,6 +28,7 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  CircularProgress,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -35,6 +36,9 @@ import {
   Add as AddIcon,
   Person as PersonIcon,
   Folder as FolderIcon,
+  AdminPanelSettings as AdminIcon,
+  EditNote as EditorIcon,
+  Visibility as ViewerIcon,
 } from '@mui/icons-material';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/AuthContext';
@@ -42,6 +46,7 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [folders, setFolders] = useState([]);
+  const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [userDialog, setUserDialog] = useState(false);
   const [permissionDialog, setPermissionDialog] = useState(false);
@@ -56,6 +61,7 @@ export default function AdminPanel() {
   const [permissionForm, setPermissionForm] = useState({
     folder_id: null,
     user_email: '',
+    permission: 'viewer',
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const { user } = useAuth();
@@ -87,26 +93,6 @@ export default function AdminPanel() {
     } catch (error) {
       console.error('Error fetching folders:', error);
       showSnackbar('Failed to fetch folders', 'error');
-    }
-  };
-
-  const fetchFolderPermissions = async (userEmail) => {
-    try {
-      const response = await api.get('/api/folders/');
-      const foldersWithPermissions = await Promise.all(
-        response.data.map(async (folder) => {
-          const permResponse = await api.get(`/api/folders/${folder.id}/permissions`);
-          if (permResponse.data.includes(userEmail)) {
-            return folder;
-          }
-          return null;
-        })
-      );
-      return foldersWithPermissions.filter((folder) => folder !== null);
-    } catch (error) {
-      console.error('Error fetching folder permissions:', error);
-      showSnackbar('Failed to fetch folder permissions', 'error');
-      return [];
     }
   };
 
@@ -147,8 +133,20 @@ export default function AdminPanel() {
 
   const handleManagePermissions = async (user) => {
     setSelectedUser(user);
-    setPermissionForm({ folder_id: null, user_email: user.email });
+    setPermissionForm({ folder_id: null, user_email: user.email, permission: 'viewer' });
+    setPermissions([]); // Reset permissions
     setPermissionDialog(true);
+    // Fetch permissions for the selected user
+    if (user.email) {
+      try {
+        const response = await api.get(`/api/folders/users/${user.email}/folder_permissions`);
+        setPermissions(response.data);
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
+        showSnackbar('Failed to fetch folder permissions', 'error');
+        setPermissions([]);
+      }
+    }
   };
 
   const handleAssignPermission = async () => {
@@ -156,10 +154,13 @@ export default function AdminPanel() {
       await api.post(`/api/folders/${permissionForm.folder_id}/permissions`, {
         user_email: permissionForm.user_email,
         action: 'add',
+        permission: permissionForm.permission,
       });
       showSnackbar('Folder access assigned successfully', 'success');
-      setPermissionDialog(false);
-      setPermissionForm({ folder_id: null, user_email: '' });
+      // Refresh permissions
+      const response = await api.get(`/api/folders/users/${permissionForm.user_email}/folder_permissions`);
+      setPermissions(response.data);
+      setPermissionForm({ folder_id: null, user_email: permissionForm.user_email, permission: 'viewer' });
     } catch (error) {
       console.error('Error assigning folder permission:', error);
       showSnackbar(error.response?.data?.detail || 'Failed to assign folder access', 'error');
@@ -173,8 +174,8 @@ export default function AdminPanel() {
         action: 'remove',
       });
       showSnackbar('Folder access removed successfully', 'success');
-      setPermissionDialog(false);
-      setPermissionDialog(true); // Reopen to refresh permissions
+      // Update permissions state to reflect removal
+      setPermissions((prev) => prev.filter((folder) => folder.id !== folderId));
     } catch (error) {
       console.error('Error removing folder permission:', error);
       showSnackbar(error.response?.data?.detail || 'Failed to remove folder access', 'error');
@@ -222,13 +223,13 @@ export default function AdminPanel() {
   const getRoleIcon = (role) => {
     switch (role) {
       case 'admin':
-        return '👑';
+        return <AdminIcon />;
       case 'editor':
-        return '✏️';
+        return <EditorIcon />;
       case 'viewer':
-        return '👁️';
+        return <ViewerIcon />;
       default:
-        return '👤';
+        return <PersonIcon />;
     }
   };
 
@@ -257,66 +258,75 @@ export default function AdminPanel() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id} hover>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <PersonIcon sx={{ mr: 1 }} />
-                      <Typography variant="body2" fontWeight="500">
-                        {user.username}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={user.role}
-                      color={getRoleColor(user.role)}
-                      size="small"
-                      icon={<span>{getRoleIcon(user.role)}</span>}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={user.is_active ? 'Active' : 'Inactive'}
-                      color={user.is_active ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditUser(user)}
-                      color="primary"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteUser(user.id)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleManagePermissions(user)}
-                      color="default"
-                    >
-                      <FolderIcon />
-                    </IconButton>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <CircularProgress />
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                users.map((user) => (
+                  <TableRow key={user.id} hover>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <PersonIcon sx={{ mr: 1 }} />
+                        <Typography variant="body2" fontWeight="500">
+                          {user.username}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={user.role}
+                        color={getRoleColor(user.role)}
+                        size="small"
+                        icon={getRoleIcon(user.role)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={user.is_active ? 'Active' : 'Inactive'}
+                        color={user.is_active ? 'success' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleEditUser(user)}
+                        color="primary"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteUser(user.id)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                     {user.role !== 'admin' && ( 
+                      <IconButton
+                        size="small"
+                        onClick={() => handleManagePermissions(user)}
+                        color="default"
+                      >
+                        <FolderIcon />
+                      </IconButton>
+                    )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
       </Paper>
 
-      {/* User Dialog */}
       <Dialog open={userDialog} onClose={() => setUserDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{editingUser ? 'Edit User' : 'Create New User'}</DialogTitle>
         <DialogContent>
@@ -351,17 +361,6 @@ export default function AdminPanel() {
             helperText={editingUser ? 'Leave blank to keep current password' : 'Required for new users'}
             sx={{ mb: 2 }}
           />
-          {editingUser && (
-            <TextField
-              margin="dense"
-              label="Current Password (for verification)"
-              type="password"
-              fullWidth
-              variant="outlined"
-              placeholder="Enter current password to confirm changes"
-              sx={{ mb: 2 }}
-            />
-          )}
           <FormControl fullWidth>
             <InputLabel>Role</InputLabel>
             <Select
@@ -383,7 +382,6 @@ export default function AdminPanel() {
         </DialogActions>
       </Dialog>
 
-      {/* Folder Permissions Dialog */}
       <Dialog open={permissionDialog} onClose={() => setPermissionDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Manage Folder Permissions for {selectedUser?.email}</DialogTitle>
         <DialogContent>
@@ -397,6 +395,17 @@ export default function AdminPanel() {
               <TextField {...params} label="Select Folder" variant="outlined" fullWidth sx={{ mb: 2 }} />
             )}
           />
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>Permission</InputLabel>
+            <Select
+              value={permissionForm.permission}
+              label="Permission"
+              onChange={(e) => setPermissionForm({ ...permissionForm, permission: e.target.value })}
+            >
+              <MenuItem value="viewer">Viewer</MenuItem>
+              <MenuItem value="editor">Editor</MenuItem>
+            </Select>
+          </FormControl>
           <Button
             variant="contained"
             onClick={handleAssignPermission}
@@ -408,21 +417,18 @@ export default function AdminPanel() {
           <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
             Assigned Folders
           </Typography>
-          <List>
-            {selectedUser && (
-              <FolderPermissionsList
-                userEmail={selectedUser.email}
-                onRemove={handleRemovePermission}
-              />
-            )}
-          </List>
+          <FolderPermissionsList
+            userEmail={selectedUser?.email}
+            permissions={permissions}
+            setPermissions={setPermissions}
+            onRemove={handleRemovePermission}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPermissionDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
@@ -440,46 +446,58 @@ export default function AdminPanel() {
   );
 }
 
-// Component to display and manage assigned folders
-function FolderPermissionsList({ userEmail, onRemove }) {
-  const [permissions, setPermissions] = useState([]);
+function FolderPermissionsList({ userEmail, permissions, setPermissions, onRemove }) {
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchPermissions = async () => {
+      if (!userEmail) return;
+      setLoading(true);
       try {
-        const foldersWithPermissions = await api.get('/api/folders/');
-        const permissionsData = await Promise.all(
-          foldersWithPermissions.data.map(async (folder) => {
-            const permResponse = await api.get(`/api/folders/${folder.id}/permissions`);
-            if (permResponse.data.includes(userEmail)) {
-              return folder;
-            }
-            return null;
-          })
-        );
-        setPermissions(permissionsData.filter((folder) => folder !== null));
+        const response = await api.get(`/api/folders/users/${userEmail}/folder_permissions`);
+        setPermissions(response.data);
       } catch (error) {
         console.error('Error fetching permissions:', error);
+        setPermissions([]);
+        showSnackbar('Failed to fetch folder permissions', 'error');
+      } finally {
+        setLoading(false);
       }
     };
     fetchPermissions();
-  }, [userEmail]);
+  }, [userEmail, setPermissions]);
+
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
 
   return (
     <>
-      {permissions.map((folder) => (
-        <ListItem key={folder.id}>
-          <ListItemText primary={folder.name} />
-          <ListItemSecondaryAction>
-            <IconButton
-              edge="end"
-              onClick={() => onRemove(folder.id, userEmail)}
-            >
-              <DeleteIcon />
-            </IconButton>
-          </ListItemSecondaryAction>
-        </ListItem>
-      ))}
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+          <CircularProgress size={24} />
+        </Box>
+      ) : permissions.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">
+          No folders assigned
+        </Typography>
+      ) : (
+        <List>
+          {permissions.map((folder) => (
+            <ListItem key={folder.id}>
+              <ListItemText primary={folder.name} />
+              <ListItemSecondaryAction>
+                <IconButton
+                  edge="end"
+                  onClick={() => onRemove(folder.id, userEmail)}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </ListItemSecondaryAction>
+            </ListItem>
+          ))}
+        </List>
+      )}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Container, Box, Snackbar, Alert, Tabs, Tab } from '@mui/material';
 import DriveLayout from '../components/Drive/DriveLayout';
 import DriveView from '../components/Drive/DriveView';
@@ -15,6 +15,7 @@ export default function Drive() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [shareFile, setShareFile] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [pendingUploadFiles, setPendingUploadFiles] = useState([]); 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState(0);
   const { logout, user } = useAuth();
@@ -25,13 +26,28 @@ export default function Drive() {
 
   const handleFileClick = async (file) => {
     try {
-      // Download the file
-      const response = await api.get(`/api/files/${file.id}/download`, {
-        responseType: 'blob'
+      const response = await api.get(`/api/files/${file.id}/download`);
+
+      if (response.data.url) {
+        const link = document.createElement('a');
+        link.href = response.data.url;
+        link.setAttribute('download', file.filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setSnackbar({
+          open: true,
+          message: `Downloading ${file.filename}`,
+          severity: 'success'
+        });
+        return;
+      }
+
+      const blobResponse = await api.get(`/api/files/${file.id}/download`, {
+        responseType: 'blob',
       });
-      
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([blobResponse.data]));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', file.filename);
@@ -39,7 +55,6 @@ export default function Drive() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
       setSnackbar({
         open: true,
         message: `Downloading ${file.filename}`,
@@ -66,11 +81,17 @@ export default function Drive() {
     }
     
     if (files.length > 0) {
+      setPendingUploadFiles(files); 
       setUploadDialogOpen(true);
     } else {
-      // Manual file selection
+      setPendingUploadFiles([]);           
       setUploadDialogOpen(true);
     }
+  };
+
+   const handleUploadDialogClose = () => {
+    setUploadDialogOpen(false);
+    setPendingUploadFiles([]);
   };
 
   const handleUploadComplete = (uploadedFiles) => {
@@ -79,7 +100,6 @@ export default function Drive() {
       message: `Successfully uploaded ${uploadedFiles.length} file(s)`,
       severity: 'success'
     });
-    // Trigger refresh
     setRefreshTrigger(prev => prev + 1);
   };
 
@@ -89,7 +109,6 @@ export default function Drive() {
       message: `Folder "${newFolder.name}" created successfully`,
       severity: 'success'
     });
-    // Trigger refresh
     setRefreshTrigger(prev => prev + 1);
   };
 
@@ -104,7 +123,6 @@ export default function Drive() {
   return (
     <DriveLayout onLogout={handleLogout}>
       <Container maxWidth="xl" sx={{ mt: 2 }}>
-        {/* Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
           <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
             <Tab label="Drive" />
@@ -112,10 +130,9 @@ export default function Drive() {
           </Tabs>
         </Box>
 
-        {/* Tab Content */}
         {activeTab === 0 && (
           <DriveView
-            key={refreshTrigger} // Force re-render when refresh is needed
+            key={refreshTrigger} 
             currentFolder={currentFolder}
             onFolderClick={handleFolderClick}
             onFileClick={handleFileClick}
@@ -129,7 +146,6 @@ export default function Drive() {
         )}
       </Container>
 
-      {/* Dialogs */}
       <CreateFolderDialog
         open={createFolderOpen}
         onClose={() => setCreateFolderOpen(false)}
@@ -139,9 +155,10 @@ export default function Drive() {
 
       <FileUploadDialog
         open={uploadDialogOpen}
-        onClose={() => setUploadDialogOpen(false)}
+        onClose={handleUploadDialogClose}
         folder={currentFolder}
         onUploadComplete={handleUploadComplete}
+        initialFiles={pendingUploadFiles}
       />
 
       <ShareDialog
@@ -149,7 +166,6 @@ export default function Drive() {
         onClose={() => setShareFile(null)}
       />
 
-      {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
