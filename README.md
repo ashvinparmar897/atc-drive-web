@@ -16,7 +16,12 @@
    ```bash
    npm start
    ```
-3. Configure API base URL in `src/api/axios.js` if needed.
+3. To make build:
+   ```bash
+   npm run build
+   ```
+
+4. Configure API base URL in `src/api/axios.js` if needed.
 
 ## Folder Structure
 - `src/components/` - UI components
