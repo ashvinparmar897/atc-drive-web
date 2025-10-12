@@ -495,8 +495,9 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={item.type}
+                        label={item.type.toUpperCase()}
                         size="small"
+                        sx={{borderRadius: 1}}
                         color={item.type === 'folder' ? 'primary' : 'default'}
                       />
                     </TableCell>

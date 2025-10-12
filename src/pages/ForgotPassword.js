@@ -12,7 +12,6 @@ import {
 } from '@mui/material';
 import { Email, ArrowBack } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
-import api from '../api/axios';
 import { useAuth } from '../contexts/AuthContext';
 
 const ForgotPassword = () => {

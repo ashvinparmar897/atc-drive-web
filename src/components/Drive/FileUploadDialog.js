@@ -349,8 +349,9 @@ export default function FileUploadDialog({ open, onClose, folder, onUploadComple
                     secondary={formatFileSize(fileObj.size)}
                   />
                   <Chip
-                    label={fileObj.isFolder ? 'folder' : fileObj.status}
+                    label={fileObj.isFolder ? 'Folder' : fileObj.status.toUpperCase()}
                     size="small"
+                    sx={{borderRadius:1}}
                     color={
                       fileObj.status === 'success' ? 'success' :
                         fileObj.status === 'error' ? 'error' : 'default'

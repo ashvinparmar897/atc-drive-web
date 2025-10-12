@@ -26,7 +26,6 @@ const Login = () => {
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
       navigate('/drive');
@@ -38,7 +37,6 @@ const Login = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
-    // Clear error when user starts typing
     if (error) setError('');
   };
 
@@ -204,7 +202,7 @@ const Login = () => {
             )}
           </Button>
 
-          <Box sx={{ textAlign: 'center', mt: 2 }}>
+          {/* <Box sx={{ textAlign: 'center', mt: 2 }}>
             <Link
               component={RouterLink}
               to="/forgot-password"
@@ -239,7 +237,7 @@ const Login = () => {
                 Sign up
               </Link>
             </Typography>
-          </Box>
+          </Box> */}
         </Box>
       </Paper>
     </Box>

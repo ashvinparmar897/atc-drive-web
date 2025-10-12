@@ -4,7 +4,6 @@ import {
   CardActionArea,
   CardContent,
   Typography,
-  Checkbox,
   Box,
   IconButton,
   Tooltip,
@@ -15,6 +14,7 @@ import {
   TextField,
   Button,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import {
   Folder as FolderIcon,
@@ -36,6 +36,7 @@ export default function FolderCard({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newName, setNewName] = useState(folder.name);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(true);
 
   const handleEditOpen = (e) => {
     e.stopPropagation();
@@ -45,6 +46,7 @@ export default function FolderCard({
   };
 
   const handleEditClose = () => {
+    if (saving) return; 
     setEditDialogOpen(false);
     setError('');
   };
@@ -56,6 +58,7 @@ export default function FolderCard({
     }
 
     try {
+      setSaving(true);
       const response = await api.put(`/api/folders/${folder.id}`, {
         name: newName.trim(),
       });
@@ -64,6 +67,8 @@ export default function FolderCard({
     } catch (error) {
       console.error('Error updating folder:', error);
       setError(error.response?.data?.detail || 'Failed to rename folder');
+    } finally {
+      setSaving(false); 
     }
   };
 
@@ -126,6 +131,7 @@ export default function FolderCard({
             variant="standard"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
+            disabled={saving}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -138,9 +144,16 @@ export default function FolderCard({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleEditClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained" disabled={!newName.trim()}>
-            Save
+          <Button onClick={handleEditClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            disabled={!newName.trim() || saving}
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {saving ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

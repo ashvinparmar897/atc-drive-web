@@ -49,6 +49,7 @@ export default function AdminPanel() {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [userDialog, setUserDialog] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
   const [permissionDialog, setPermissionDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
@@ -183,12 +184,11 @@ export default function AdminPanel() {
   };
 
   const handleSubmit = async () => {
+    setSavingUser(true);
     try {
       if (editingUser) {
         const updateData = { ...userForm };
-        if (!updateData.password) {
-          delete updateData.password;
-        }
+        if (!updateData.password) delete updateData.password;
         await api.put(`/api/users/admin/users/${editingUser.id}`, updateData);
         showSnackbar('User updated successfully', 'success');
       } else {
@@ -200,6 +200,8 @@ export default function AdminPanel() {
     } catch (error) {
       console.error('Error saving user:', error);
       showSnackbar(error.response?.data?.detail || 'Failed to save user', 'error');
+    } finally {
+      setSavingUser(false);
     }
   };
 
@@ -376,9 +378,15 @@ export default function AdminPanel() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setUserDialog(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            {editingUser ? 'Update' : 'Create'}
+          <Button
+            onClick={handleSubmit}
+            variant="contained"
+            disabled={savingUser}
+            startIcon={savingUser && <CircularProgress size={18} color="inherit" />}
+          >
+            {savingUser ? 'Saving...' : editingUser ? 'Update' : 'Create'}
           </Button>
+
         </DialogActions>
       </Dialog>
 
@@ -459,7 +467,6 @@ function FolderPermissionsList({ userEmail, permissions, setPermissions, onRemov
       } catch (error) {
         console.error('Error fetching permissions:', error);
         setPermissions([]);
-        showSnackbar('Failed to fetch folder permissions', 'error');
       } finally {
         setLoading(false);
       }
@@ -467,9 +474,6 @@ function FolderPermissionsList({ userEmail, permissions, setPermissions, onRemov
     fetchPermissions();
   }, [userEmail, setPermissions]);
 
-  const showSnackbar = (message, severity = 'success') => {
-    setSnackbar({ open: true, message, severity });
-  };
 
   return (
     <>
@@ -482,21 +486,36 @@ function FolderPermissionsList({ userEmail, permissions, setPermissions, onRemov
           No folders assigned
         </Typography>
       ) : (
-        <List>
-          {permissions.map((folder) => (
-            <ListItem key={folder.id}>
-              <ListItemText primary={folder.name} />
-              <ListItemSecondaryAction>
-                <IconButton
-                  edge="end"
-                  onClick={() => onRemove(folder.id, userEmail)}
-                >
-                  <DeleteIcon />
-                </IconButton>
-              </ListItemSecondaryAction>
-            </ListItem>
-          ))}
-        </List>
+        <Box
+          sx={{
+            maxHeight: 250,
+            overflowY: 'auto',
+            border: '1px solid #e0e0e0',
+            borderRadius: 1,
+            p: 1,
+          }}
+        >
+          <List dense>
+            {permissions.map((folder) => (
+              <ListItem key={folder.id} sx={{ borderBottom: '1px solid #f0f0f0' }}>
+                <ListItemText
+                  primary={folder.name}
+                  secondary={folder.permission ? `Role: ${folder.permission}` : null}
+                />
+                <ListItemSecondaryAction>
+                  <IconButton
+                    edge="end"
+                    size="small"
+                    color="error"
+                    onClick={() => onRemove(folder.id, userEmail)}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
       )}
     </>
   );

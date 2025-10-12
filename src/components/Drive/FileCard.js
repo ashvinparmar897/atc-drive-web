@@ -4,7 +4,6 @@ import {
   CardActionArea,
   CardContent,
   Typography,
-  Checkbox,
   Box,
   IconButton,
   Tooltip,
@@ -15,6 +14,7 @@ import {
   TextField,
   Button,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import {
   InsertDriveFile as FileIcon,
@@ -25,9 +25,9 @@ import {
 import api from '../../api/axios';
 
 function formatFileSize(bytes) {
-  if (!bytes) return "0 B";
+  if (!bytes) return '0 B';
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
+  const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
@@ -45,6 +45,7 @@ export default function FileCard({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newName, setNewName] = useState(file.name || file.filename || '');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleEditOpen = (e) => {
     e.stopPropagation();
@@ -54,6 +55,7 @@ export default function FileCard({
   };
 
   const handleEditClose = () => {
+    if (saving) return;
     setEditDialogOpen(false);
     setError('');
   };
@@ -65,6 +67,7 @@ export default function FileCard({
     }
 
     try {
+      setSaving(true); 
       const response = await api.put(`/api/files/${file.id}`, {
         filename: newName.trim(),
       });
@@ -74,6 +77,8 @@ export default function FileCard({
     } catch (error) {
       console.error('Error updating file:', error);
       setError(error.response?.data?.detail || 'Failed to rename file');
+    } finally {
+      setSaving(false); 
     }
   };
 
@@ -152,6 +157,7 @@ export default function FileCard({
             variant="standard"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
+            disabled={saving} 
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -164,9 +170,16 @@ export default function FileCard({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleEditClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained" disabled={!newName.trim()}>
-            Save
+          <Button onClick={handleEditClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            disabled={!newName.trim() || saving}
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {saving ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>
