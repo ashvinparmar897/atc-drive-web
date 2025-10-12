@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:8000', // Remove /api since routers now have full paths
+  baseURL: 'http://93.127.137.160:8000', // Remove /api since routers now have full paths
 });
 
 instance.interceptors.request.use(config => {
