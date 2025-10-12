@@ -27,6 +27,7 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
+  CircularProgress,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
@@ -51,7 +52,7 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function DriveView({ currentFolder, onFolderClick, onFileClick, onUpload, onCreateFolder }) {
   const [items, setItems] = useState([]);
   const [breadcrumbs, setBreadcrumbs] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [uploadError, setUploadError] = useState('');
   const [error, setError] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
@@ -436,7 +437,147 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
         </Box>
       )}
 
-      {viewMode === 'grid' ? (
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+          <CircularProgress />
+        </Box>
+      ) : filteredAndSortedItems.length === 0 ? (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <Typography variant="h6" color="text.secondary">
+            No files or folders here
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {user?.role === 'viewer'
+              ? 'You may not have access to any folders or files. Contact an admin for access.'
+              : 'Upload files or create a folder to get started'}
+          </Typography>
+        </Box>
+      ) : viewMode === 'grid' ? (
+        <Grid container spacing={2}>
+          {filteredAndSortedItems.map((item) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={item.id}>
+              {item.type === 'folder' ? (
+                <FolderCard
+                  folder={item}
+                  onFolderClick={onFolderClick}
+                  onSelectionChange={handleSelectionChange}
+                  selected={selectedItems.includes(item.id)}
+                  onFolderUpdated={handleFolderUpdated}
+                  onFolderDeleted={handleFolderDeleted}
+                  canEdit={user?.role === 'admin' || user?.role === 'editor'}
+                  canDelete={user?.role === 'admin'}
+                />
+              ) : (
+                <FileCard
+                  file={item}
+                  onFileClick={onFileClick}
+                  onSelectionChange={handleSelectionChange}
+                  selected={selectedItems.includes(item.id)}
+                  onFileUpdated={handleFileUpdated}
+                  onFileDeleted={handleFileDeleted}
+                  canEdit={user?.role === 'admin' || user?.role === 'editor'}
+                  canDelete={user?.role === 'admin'}
+                />
+              )}
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <TableContainer>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Size</TableCell>
+                  <TableCell>Modified</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredAndSortedItems.map((item) => (
+                  <TableRow key={item.id} hover selected={selectedItems.includes(item.id)}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {item.type === 'folder' ? <FolderIcon color="primary" /> : <FileIcon />}
+                        <Typography
+                          sx={{ ml: 1, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                          onClick={() => item.type === 'folder' ? onFolderClick(item) : onFileClick(item)}
+                        >
+                          {item.name || item.filename}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={item.type.toUpperCase()}
+                        size="small"
+                        sx={{ borderRadius: 1 }}
+                        color={item.type === 'folder' ? 'primary' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {item.type === 'folder' ? '-' : formatFileSize(item.file_size || 0)}
+                    </TableCell>
+                    <TableCell>
+                      {item.updated_at || item.created_at ?
+                        new Date(item.updated_at || item.created_at).toLocaleDateString() :
+                        'N/A'
+                      }
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {item.type === 'folder' ? (
+                          <>
+                            {canEdit && (
+                              <Tooltip title="Rename Folder">
+                                <IconButton size="small" onClick={(e) => handleEditOpen(item, e)}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete Folder">
+                                <IconButton size="small" color="error" onClick={(e) => handleDelete(item, e)}>
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Tooltip title="Download">
+                              <IconButton size="small" onClick={() => onFileClick(item)}>
+                                <DownloadIcon />
+                              </IconButton>
+                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Rename File">
+                                <IconButton size="small" onClick={(e) => handleEditOpen(item, e)}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete File">
+                                <IconButton size="small" color="error" onClick={(e) => handleDelete(item, e)}>
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </>
+                        )}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
+      {/* {viewMode === 'grid' ? (
         <Grid container spacing={2}>
           {filteredAndSortedItems.map((item) => (
             <Grid item xs={12} sm={6} md={4} lg={3} key={item.id}>
@@ -573,7 +714,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
               : 'Upload files or create a folder to get started'}
           </Typography>
         </Box>
-      )}
+      )} */}
 
       <Dialog open={editDialogOpen} onClose={handleEditClose} maxWidth="xs" fullWidth>
         <DialogTitle>Rename {editItem?.type === 'folder' ? 'Folder' : 'File'}</DialogTitle>
