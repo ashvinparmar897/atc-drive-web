@@ -173,23 +173,63 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
     }
   };
 
-  const updateBreadcrumbs = () => {
-    const crumbs = [];
-    let current = currentFolder;
-    while (current) {
-      crumbs.unshift({ id: current.id, name: current.name });
-      current = current.parent;
+  const updateBreadcrumbs = async () => {
+    try {
+      const crumbs = [];
+
+      if (!currentFolder) {
+        crumbs.push({ id: 'root', name: 'My Drive' });
+        setBreadcrumbs(crumbs);
+        return;
+      }
+
+      crumbs.unshift({ id: currentFolder.id, name: currentFolder.name });
+
+      const getParentId = (folder) => {
+        if (!folder) return null;
+        if (typeof folder.parent === 'object' && folder.parent !== null) return folder.parent.id;
+        if (typeof folder.parent === 'string' || typeof folder.parent === 'number') return folder.parent;
+        if (folder.parent_id) return folder.parent_id;
+        if (folder.parentId) return folder.parentId;
+        return null;
+      };
+
+      let parentId = getParentId(currentFolder);
+
+      while (parentId) {
+        try {
+          const res = await api.get(`/api/folders/${parentId}`);
+          const parentFolder = res.data;
+          crumbs.unshift({ id: parentFolder.id, name: parentFolder.name });
+          parentId = getParentId(parentFolder);
+        } catch (err) {
+          console.error('Error fetching parent folder:', err);
+          break;
+        }
+      }
+
+      crumbs.unshift({ id: 'root', name: 'My Drive' });
+      setBreadcrumbs(crumbs);
+    } catch (err) {
+      console.error('Error building breadcrumbs:', err);
+      setBreadcrumbs([{ id: 'root', name: 'My Drive' }]);
     }
-    crumbs.unshift({ id: 'root', name: 'My Drive' });
-    setBreadcrumbs(crumbs);
   };
 
-  const handleBreadcrumbClick = (crumb, index) => {
+  const handleBreadcrumbClick = async (crumb, index) => {
     if (index < breadcrumbs.length - 1) {
       if (crumb.id === 'root') {
         onFolderClick(null);
-      } else {
-        onFolderClick(crumb);
+        return;
+      }
+
+      try {
+        const res = await api.get(`/api/folders/${crumb.id}`);
+        const folder = res.data;
+        onFolderClick(folder);
+      } catch (err) {
+        console.error('Error fetching folder for breadcrumb navigation:', err);
+        onFolderClick({ id: crumb.id, name: crumb.name });
       }
     }
   };
