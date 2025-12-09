@@ -47,7 +47,6 @@ import { useDropzone } from 'react-dropzone';
 import api from '../../api/axios';
 import FolderCard from './FolderCard';
 import FileCard from './FileCard';
-import ConfirmDialog from './ConfirmDialog';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function DriveView({ currentFolder, onFolderClick, onFileClick, onUpload, onCreateFolder }) {
@@ -63,13 +62,10 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   const [sortOrder, setSortOrder] = useState('asc');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [deleteItem, setDeleteItem] = useState(null);
   const [newName, setNewName] = useState('');
   const [editError, setEditError] = useState('');
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
-  const [successMsg, setSuccessMsg] = useState('');
   const { user } = useAuth();
 
   const canEdit = user?.role === 'admin' || user?.role === 'editor';
@@ -305,13 +301,11 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           name: newName.trim(),
         });
         handleFolderUpdated({ ...editItem, name: newName.trim() });
-        setSuccessMsg('Folder renamed successfully');
       } else {
         await api.put(`/api/files/${editItem.id}`, {
           filename: newName.trim(),
         });
         handleFileUpdated({ ...editItem, name: newName.trim(), filename: newName.trim() });
-        setSuccessMsg('File renamed successfully');
       }
       handleEditClose();
     } catch (error) {
@@ -320,31 +314,21 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
     }
   };
 
-  const handleDeleteOpen = (item, e) => {
+  const handleDelete = async (item, e) => {
     e.stopPropagation();
-    setDeleteItem(item);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleDelete = async () => {
-    if (!deleteItem) return;
-    try {
-      if (deleteItem.type === 'folder') {
-        await api.delete(`/api/folders/${deleteItem.id}`);
-        handleFolderDeleted(deleteItem.id);
-        setSuccessMsg('Folder deleted successfully');
-      } else {
-        await api.delete(`/api/files/${deleteItem.id}`);
-        handleFileDeleted(deleteItem.id);
-        setSuccessMsg('File deleted successfully');
+    if (window.confirm(`Are you sure you want to delete the ${item.type} "${item.name || item.filename}"?`)) {
+      try {
+        if (item.type === 'folder') {
+          await api.delete(`/api/folders/${item.id}`);
+          handleFolderDeleted(item.id);
+        } else {
+          await api.delete(`/api/files/${item.id}`);
+          handleFileDeleted(item.id);
+        }
+      } catch (error) {
+        console.error('Error deleting item:', error);
+        setError(error.response?.data?.detail || `Failed to delete ${item.type}`);
       }
-      setDeleteDialogOpen(false);
-      setDeleteItem(null);
-    } catch (error) {
-      console.error('Error deleting item:', error);
-      setError(error.response?.data?.detail || `Failed to delete ${deleteItem.type}`);
-      setDeleteDialogOpen(false);
-      setDeleteItem(null);
     }
   };
 
@@ -522,8 +506,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
                   onFolderDeleted={handleFolderDeleted}
                   canEdit={user?.role === 'admin' || user?.role === 'editor'}
                   canDelete={user?.role === 'admin'}
-                  onSuccess={setSuccessMsg}
-                  onError={setError}
                 />
               ) : (
                 <FileCard
@@ -535,8 +517,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
                   onFileDeleted={handleFileDeleted}
                   canEdit={user?.role === 'admin' || user?.role === 'editor'}
                   canDelete={user?.role === 'admin'}
-                  onSuccess={setSuccessMsg}
-                  onError={setError}
                 />
               )}
             </Grid>
@@ -599,7 +579,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
                             )}
                             {canDelete && (
                               <Tooltip title="Delete Folder">
-                                <IconButton size="small" color="error" onClick={(e) => handleDeleteOpen(item, e)}>
+                                <IconButton size="small" color="error" onClick={(e) => handleDelete(item, e)}>
                                   <DeleteIcon />
                                 </IconButton>
                               </Tooltip>
@@ -621,7 +601,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
                             )}
                             {canDelete && (
                               <Tooltip title="Delete File">
-                                <IconButton size="small" color="error" onClick={(e) => handleDeleteOpen(item, e)}>
+                                <IconButton size="small" color="error" onClick={(e) => handleDelete(item, e)}>
                                   <DeleteIcon />
                                 </IconButton>
                               </Tooltip>
@@ -637,6 +617,144 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           </TableContainer>
         </Paper>
       )}
+      {/* {viewMode === 'grid' ? (
+        <Grid container spacing={2}>
+          {filteredAndSortedItems.map((item) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={item.id}>
+              {item.type === 'folder' ? (
+                <FolderCard
+                  folder={item}
+                  onFolderClick={onFolderClick}
+                  onSelectionChange={handleSelectionChange}
+                  selected={selectedItems.includes(item.id)}
+                  onFolderUpdated={handleFolderUpdated}
+                  onFolderDeleted={handleFolderDeleted}
+                  canEdit={user?.role === 'admin' || user?.role === 'editor'}
+                  canDelete={user?.role === 'admin'}
+                />
+              ) : (
+                <FileCard
+                  file={item}
+                  onFileClick={onFileClick}
+                  onSelectionChange={handleSelectionChange}
+                  selected={selectedItems.includes(item.id)}
+                  onFileUpdated={handleFileUpdated}
+                  onFileDeleted={handleFileDeleted}
+                  canEdit={user?.role === 'admin' || user?.role === 'editor'}
+                  canDelete={user?.role === 'admin'}
+                />
+              )}
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <TableContainer>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Size</TableCell>
+                  <TableCell>Modified</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredAndSortedItems.map((item) => (
+                  <TableRow key={item.id} hover selected={selectedItems.includes(item.id)}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {item.type === 'folder' ? <FolderIcon color="primary" /> : <FileIcon />}
+                        <Typography
+                          sx={{ ml: 1, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                          onClick={() => item.type === 'folder' ? onFolderClick(item) : onFileClick(item)}
+                        >
+                          {item.name || item.filename}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={item.type.toUpperCase()}
+                        size="small"
+                        sx={{borderRadius: 1}}
+                        color={item.type === 'folder' ? 'primary' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {item.type === 'folder' ? '-' : formatFileSize(item.file_size || 0)}
+                    </TableCell>
+                    <TableCell>
+                      {item.updated_at || item.created_at ?
+                        new Date(item.updated_at || item.created_at).toLocaleDateString() :
+                        'N/A'
+                      }
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {item.type === 'folder' ? (
+                          <>
+                            {canEdit && (
+                              <Tooltip title="Rename Folder">
+                                <IconButton size="small" onClick={(e) => handleEditOpen(item, e)}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete Folder">
+                                <IconButton size="small" color="error" onClick={(e) => handleDelete(item, e)}>
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Tooltip title="Download">
+                              <IconButton size="small" onClick={() => onFileClick(item)}>
+                                <DownloadIcon />
+                              </IconButton>
+                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Rename File">
+                                <IconButton size="small" onClick={(e) => handleEditOpen(item, e)}>
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete File">
+                                <IconButton size="small" color="error" onClick={(e) => handleDelete(item, e)}>
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </>
+                        )}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
+
+      {items.length === 0 && !loading && (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <Typography variant="h6" color="text.secondary">
+            No files or folders here
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {user?.role === 'viewer'
+              ? 'You may not have access to any folders or files. Contact an admin for access.'
+              : 'Upload files or create a folder to get started'}
+          </Typography>
+        </Box>
+      )} */}
 
       <Dialog open={editDialogOpen} onClose={handleEditClose} maxWidth="xs" fullWidth>
         <DialogTitle>Rename {editItem?.type === 'folder' ? 'Folder' : 'File'}</DialogTitle>
@@ -674,19 +792,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
         </DialogActions>
       </Dialog>
 
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        title={`Delete ${deleteItem?.type === 'folder' ? 'Folder' : 'File'}`}
-        message={`Are you sure you want to delete the ${deleteItem?.type} "${deleteItem?.name || deleteItem?.filename}"? This action cannot be undone.`}
-        onConfirm={handleDelete}
-        onCancel={() => {
-          setDeleteDialogOpen(false);
-          setDeleteItem(null);
-        }}
-        confirmText="Delete"
-        confirmColor="error"
-      />
-
       {user?.role !== 'viewer' && (
         <Fab
           color="primary"
@@ -710,17 +815,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           sx={{ width: '100%' }}
         >
           {error}
-        </Alert>
-      </Snackbar>
-
-      <Snackbar
-        open={!!successMsg}
-        autoHideDuration={3000}
-        onClose={() => setSuccessMsg('')}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setSuccessMsg('')} severity="success" sx={{ width: '100%' }}>
-          {successMsg}
         </Alert>
       </Snackbar>
     </Box>

@@ -12,8 +12,8 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
 function RootRoute() {
-  const { currentUser } = useAuth();
-  return currentUser ? <Navigate to="/drive" /> : <Navigate to="/login" />;
+  const { user } = useAuth();
+  return user ? <Navigate to="/drive" /> : <Navigate to="/login" />;
 }
 
 function App() {

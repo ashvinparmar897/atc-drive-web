@@ -90,7 +90,11 @@ export default function AdminPanel() {
   const fetchFolders = async () => {
     try {
       const response = await api.get('/api/folders/');
-      setFolders(response.data);
+      const allFolders = response.data;
+      const unassignedFolders = allFolders.filter(
+        folder => !permissions.some(p => p.id === folder.id)
+      );
+      setFolders(unassignedFolders);
     } catch (error) {
       console.error('Error fetching folders:', error);
       showSnackbar('Failed to fetch folders', 'error');
@@ -135,13 +139,17 @@ export default function AdminPanel() {
   const handleManagePermissions = async (user) => {
     setSelectedUser(user);
     setPermissionForm({ folder_id: null, user_email: user.email, permission: 'viewer' });
-    setPermissions([]); // Reset permissions
+    setPermissions([]);
     setPermissionDialog(true);
-    // Fetch permissions for the selected user
     if (user.email) {
       try {
         const response = await api.get(`/api/folders/users/${user.email}/folder_permissions`);
         setPermissions(response.data);
+        const allFoldersRes = await api.get('/api/folders/');
+        const unassignedFolders = allFoldersRes.data.filter(
+          folder => !response.data.some(p => p.id === folder.id)
+        );
+        setFolders(unassignedFolders);
       } catch (error) {
         console.error('Error fetching permissions:', error);
         showSnackbar('Failed to fetch folder permissions', 'error');
@@ -151,6 +159,10 @@ export default function AdminPanel() {
   };
 
   const handleAssignPermission = async () => {
+    if (!permissionForm.folder_id) {
+      showSnackbar('Please select a folder', 'error');
+      return;
+    }
     try {
       await api.post(`/api/folders/${permissionForm.folder_id}/permissions`, {
         user_email: permissionForm.user_email,
@@ -158,9 +170,13 @@ export default function AdminPanel() {
         permission: permissionForm.permission,
       });
       showSnackbar('Folder access assigned successfully', 'success');
-      // Refresh permissions
       const response = await api.get(`/api/folders/users/${permissionForm.user_email}/folder_permissions`);
       setPermissions(response.data);
+      const allFoldersRes = await api.get('/api/folders/');
+      const unassignedFolders = allFoldersRes.data.filter(
+        folder => !response.data.some(p => p.id === folder.id)
+      );
+      setFolders(unassignedFolders);
       setPermissionForm({ folder_id: null, user_email: permissionForm.user_email, permission: 'viewer' });
     } catch (error) {
       console.error('Error assigning folder permission:', error);
@@ -175,8 +191,13 @@ export default function AdminPanel() {
         action: 'remove',
       });
       showSnackbar('Folder access removed successfully', 'success');
-      // Update permissions state to reflect removal
       setPermissions((prev) => prev.filter((folder) => folder.id !== folderId));
+      const allFoldersRes = await api.get('/api/folders/');
+      const response = await api.get(`/api/folders/users/${userEmail}/folder_permissions`);
+      const unassignedFolders = allFoldersRes.data.filter(
+        folder => !response.data.some(p => p.id === folder.id)
+      );
+      setFolders(unassignedFolders);
     } catch (error) {
       console.error('Error removing folder permission:', error);
       showSnackbar(error.response?.data?.detail || 'Failed to remove folder access', 'error');

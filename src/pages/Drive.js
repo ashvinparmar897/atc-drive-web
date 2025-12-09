@@ -10,7 +10,10 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/axios';
 
 export default function Drive() {
-  const [currentFolder, setCurrentFolder] = useState(null);
+  const [currentFolder, setCurrentFolder] = useState(() => {
+    const saved = localStorage.getItem('currentFolder');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [shareFile, setShareFile] = useState(null);
@@ -22,6 +25,11 @@ export default function Drive() {
 
   const handleFolderClick = (folder) => {
     setCurrentFolder(folder);
+    if (folder) {
+      localStorage.setItem('currentFolder', JSON.stringify(folder));
+    } else {
+      localStorage.removeItem('currentFolder');
+    }
   };
 
   const handleFileClick = async (file) => {
@@ -117,6 +125,7 @@ export default function Drive() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('currentFolder');
     logout();
   };
 

@@ -15,6 +15,7 @@ import {
   Button,
   Alert,
   CircularProgress,
+  Snackbar,
 } from '@mui/material';
 import {
   InsertDriveFile as FileIcon,
@@ -23,6 +24,7 @@ import {
   Download as DownloadIcon,
 } from '@mui/icons-material';
 import api from '../../api/axios';
+import ConfirmDialog from './ConfirmDialog';
 
 function formatFileSize(bytes) {
   if (!bytes) return '0 B';
@@ -41,8 +43,11 @@ export default function FileCard({
   onFileDeleted,
   canEdit = false,
   canDelete = false,
+  onSuccess,
+  onError,
 }) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [newName, setNewName] = useState(file.name || file.filename || '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -74,6 +79,7 @@ export default function FileCard({
       onFileUpdated &&
         onFileUpdated({ ...file, name: newName.trim(), filename: newName.trim() });
       setEditDialogOpen(false);
+      onSuccess && onSuccess('File renamed successfully');
     } catch (error) {
       console.error('Error updating file:', error);
       setError(error.response?.data?.detail || 'Failed to rename file');
@@ -82,16 +88,21 @@ export default function FileCard({
     }
   };
 
-  const handleDelete = async (e) => {
+  const handleDeleteOpen = (e) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete the file "${file.name || file.filename}"?`)) {
-      try {
-        await api.delete(`/api/files/${file.id}`);
-        onFileDeleted && onFileDeleted(file.id);
-      } catch (error) {
-        console.error('Error deleting file:', error);
-        alert(error.response?.data?.detail || 'Failed to delete file');
-      }
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await api.delete(`/api/files/${file.id}`);
+      setDeleteDialogOpen(false);
+      onFileDeleted && onFileDeleted(file.id);
+      onSuccess && onSuccess('File deleted successfully');
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      setDeleteDialogOpen(false);
+      onError && onError(error.response?.data?.detail || 'Failed to delete file');
     }
   };
 
@@ -130,7 +141,7 @@ export default function FileCard({
               )}
               {canDelete && (
                 <Tooltip title="Delete File">
-                  <IconButton size="small" color="error" onClick={handleDelete}>
+                  <IconButton size="small" color="error" onClick={handleDeleteOpen}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
@@ -183,6 +194,17 @@ export default function FileCard({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete File"
+        message={`Are you sure you want to delete the file "${file.name || file.filename}"? This action cannot be undone.`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteDialogOpen(false)}
+        confirmText="Delete"
+        confirmColor="error"
+      />
+
     </>
   );
 }

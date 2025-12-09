@@ -22,6 +22,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import api from '../../api/axios';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function FolderCard({
   folder,
@@ -32,11 +33,14 @@ export default function FolderCard({
   onFolderDeleted,
   canEdit = false,
   canDelete = false,
+  onSuccess,
+  onError,
 }) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [newName, setNewName] = useState(folder.name);
   const [error, setError] = useState('');
-  const [saving, setSaving] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const handleEditOpen = (e) => {
     e.stopPropagation();
@@ -64,6 +68,7 @@ export default function FolderCard({
       });
       onFolderUpdated && onFolderUpdated({ ...folder, name: newName.trim() });
       setEditDialogOpen(false);
+      onSuccess && onSuccess('Folder renamed successfully');
     } catch (error) {
       console.error('Error updating folder:', error);
       setError(error.response?.data?.detail || 'Failed to rename folder');
@@ -72,16 +77,21 @@ export default function FolderCard({
     }
   };
 
-  const handleDelete = async (e) => {
+  const handleDeleteOpen = (e) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete the folder "${folder.name}"?`)) {
-      try {
-        await api.delete(`/api/folders/${folder.id}`);
-        onFolderDeleted && onFolderDeleted(folder.id);
-      } catch (error) {
-        console.error('Error deleting folder:', error);
-        alert(error.response?.data?.detail || 'Failed to delete folder');
-      }
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await api.delete(`/api/folders/${folder.id}`);
+      setDeleteDialogOpen(false);
+      onFolderDeleted && onFolderDeleted(folder.id);
+      onSuccess && onSuccess('Folder deleted successfully');
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      setDeleteDialogOpen(false);
+      onError && onError(error.response?.data?.detail || 'Failed to delete folder');
     }
   };
 
@@ -104,7 +114,7 @@ export default function FolderCard({
               )}
               {canDelete && (
                 <Tooltip title="Delete Folder">
-                  <IconButton size="small" color="error" onClick={handleDelete}>
+                  <IconButton size="small" color="error" onClick={handleDeleteOpen}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
@@ -157,6 +167,17 @@ export default function FolderCard({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete Folder"
+        message={`Are you sure you want to delete the folder "${folder.name}"? This action cannot be undone.`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteDialogOpen(false)}
+        confirmText="Delete"
+        confirmColor="error"
+      />
+
     </>
   );
 }
