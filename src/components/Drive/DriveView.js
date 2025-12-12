@@ -69,6 +69,9 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   const [editError, setEditError] = useState('');
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState(null);
   const { user } = useAuth();
 
   const canEdit = user?.role === 'admin' || user?.role === 'editor';
@@ -82,17 +85,33 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const filteredAndSortedItems = React.useMemo(() => {
-    let filtered = items;
-    if (searchQuery) {
-      filtered = items.filter(item => {
-        const searchTerm = searchQuery.toLowerCase();
-        const itemName = (item.name || item.filename || '').toLowerCase();
-        return itemName.includes(searchTerm);
-      });
+  const handleSearch = async (query) => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    
+    if (query.length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
     }
+    
+    setIsSearching(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const response = await api.get(`/api/search/?q=${encodeURIComponent(query)}`);
+        setSearchResults(response.data);
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      }
+    }, 300);
+    
+    setSearchTimeout(timeout);
+  };
+
+  const filteredAndSortedItems = React.useMemo(() => {
+    let filtered = isSearching ? searchResults.map(r => ({ ...r, filename: r.name })) : items;
     return filtered;
-  }, [items, searchQuery]);
+  }, [items, searchResults, isSearching]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (acceptedFiles) => {
@@ -392,7 +411,10 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           size="small"
           placeholder="Search files and folders..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            handleSearch(e.target.value);
+          }}
           InputProps={{
             startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
           }}
