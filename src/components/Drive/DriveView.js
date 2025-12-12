@@ -19,8 +19,6 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Menu,
-  MenuItem,
   TextField,
   Dialog,
   DialogTitle,
@@ -28,6 +26,8 @@ import {
   DialogActions,
   Snackbar,
   CircularProgress,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
@@ -36,7 +36,7 @@ import {
   ViewList as ListIcon,
   Apps as GridIcon,
   Search as SearchIcon,
-  Sort as SortIcon,
+  DragIndicator as DragIcon,
   Folder as FolderIcon,
   InsertDriveFile as FileIcon,
   Edit as EditIcon,
@@ -49,6 +49,7 @@ import FolderCard from './FolderCard';
 import FileCard from './FileCard';
 import ConfirmDialog from './ConfirmDialog';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDragAndDrop } from '../../hooks/useDragAndDrop';
 
 export default function DriveView({ currentFolder, onFolderClick, onFileClick, onUpload, onCreateFolder }) {
   const [items, setItems] = useState([]);
@@ -59,9 +60,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   const [selectedItems, setSelectedItems] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('name');
-  const [sortOrder, setSortOrder] = useState('asc');
-  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [dragDropEnabled, setDragDropEnabled] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -92,39 +91,8 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
         return itemName.includes(searchTerm);
       });
     }
-
-    filtered.sort((a, b) => {
-      let aValue, bValue;
-
-      switch (sortBy) {
-        case 'name':
-          aValue = (a.name || a.filename || '').toLowerCase();
-          bValue = (b.name || b.filename || '').toLowerCase();
-          break;
-        case 'type':
-          aValue = a.type;
-          bValue = b.type;
-          break;
-        case 'size':
-          aValue = a.file_size || 0;
-          bValue = b.file_size || 0;
-          break;
-        case 'modified':
-          aValue = new Date(a.updated_at || a.created_at || 0);
-          bValue = new Date(b.updated_at || b.created_at || 0);
-          break;
-        default:
-          aValue = a.name || a.filename || '';
-          bValue = b.name || b.filename || '';
-      }
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
     return filtered;
-  }, [items, searchQuery, sortBy, sortOrder]);
+  }, [items, searchQuery]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (acceptedFiles) => {
@@ -138,18 +106,6 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
     },
     noClick: true
   });
-
-  useEffect(() => {
-    if (currentFolder !== undefined) {
-      setItems([]);
-      fetchItems();
-      updateBreadcrumbs();
-    }
-  }, [currentFolder]);
-
-  useEffect(() => {
-    window.refreshDriveView = fetchItems;
-  }, []);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -176,6 +132,25 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
       setLoading(false);
     }
   };
+
+  const { handleDragStart, handleDragOver, handleDrop } = useDragAndDrop(
+    items,
+    setItems,
+    setError,
+    fetchItems
+  );
+
+  useEffect(() => {
+    if (currentFolder !== undefined) {
+      setItems([]);
+      fetchItems();
+      updateBreadcrumbs();
+    }
+  }, [currentFolder]);
+
+  useEffect(() => {
+    window.refreshDriveView = fetchItems;
+  }, []);
 
   const updateBreadcrumbs = async () => {
     try {
@@ -424,40 +399,21 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
           sx={{ minWidth: 200 }}
         />
 
-        <Tooltip title="Sort">
-          <IconButton onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}>
-            <SortIcon />
-          </IconButton>
-
-        </Tooltip>
-
-        <Menu
-          anchorEl={sortMenuAnchorEl}
-          open={Boolean(sortMenuAnchorEl)}
-          onClose={() => setSortMenuAnchorEl(null)}
-        >
-          <MenuItem onClick={() => { setSortBy('name'); setSortOrder('asc'); setSortMenuOpen(false); }}>
-            Name (A-Z)
-          </MenuItem>
-          <MenuItem onClick={() => { setSortBy('name'); setSortOrder('desc'); setSortMenuOpen(false); }}>
-            Name (Z-A)
-          </MenuItem>
-          <MenuItem onClick={() => { setSortBy('type'); setSortOrder('asc'); setSortMenuOpen(false); }}>
-            Type (A-Z)
-          </MenuItem>
-          <MenuItem onClick={() => { setSortBy('size'); setSortOrder('asc'); setSortMenuOpen(false); }}>
-            Size (Small to Large)
-          </MenuItem>
-          <MenuItem onClick={() => { setSortBy('size'); setSortOrder('desc'); setSortMenuOpen(false); }}>
-            Size (Large to Small)
-          </MenuItem>
-          <MenuItem onClick={() => { setSortBy('modified'); setSortOrder('desc'); setSortMenuOpen(false); }}>
-            Modified (Newest First)
-          </MenuItem>
-          <MenuItem onClick={() => { setSortBy('modified'); setSortOrder('asc'); setSortMenuOpen(false); }}>
-            Modified (Oldest First)
-          </MenuItem>
-        </Menu>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={dragDropEnabled}
+              onChange={(e) => setDragDropEnabled(e.target.checked)}
+              color="primary"
+            />
+          }
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <DragIcon fontSize="small" />
+              <Typography variant="body2">Drag Sort</Typography>
+            </Box>
+          }
+        />
       </Stack>
 
       {user?.role !== 'viewer' && (
@@ -510,8 +466,20 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
         </Box>
       ) : viewMode === 'grid' ? (
         <Grid container spacing={2}>
-          {filteredAndSortedItems.map((item) => (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={item.id}>
+          {filteredAndSortedItems.map((item, index) => (
+            <Grid 
+              item 
+              xs={12} 
+              sm={6} 
+              md={4} 
+              lg={3} 
+              key={item.id}
+              draggable={dragDropEnabled}
+              onDragStart={dragDropEnabled ? (e) => handleDragStart(e, item, index) : undefined}
+              onDragOver={dragDropEnabled ? handleDragOver : undefined}
+              onDrop={dragDropEnabled ? (e) => handleDrop(e, index) : undefined}
+              sx={{ cursor: dragDropEnabled ? 'move' : 'default' }}
+            >
               {item.type === 'folder' ? (
                 <FolderCard
                   folder={item}
@@ -556,8 +524,17 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredAndSortedItems.map((item) => (
-                  <TableRow key={item.id} hover selected={selectedItems.includes(item.id)}>
+                {filteredAndSortedItems.map((item, index) => (
+                  <TableRow 
+                    key={item.id} 
+                    hover 
+                    selected={selectedItems.includes(item.id)}
+                    draggable={dragDropEnabled}
+                    onDragStart={dragDropEnabled ? (e) => handleDragStart(e, item, index) : undefined}
+                    onDragOver={dragDropEnabled ? handleDragOver : undefined}
+                    onDrop={dragDropEnabled ? (e) => handleDrop(e, index) : undefined}
+                    sx={{ cursor: dragDropEnabled ? 'move' : 'default' }}
+                  >
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {item.type === 'folder' ? <FolderIcon color="primary" /> : <FileIcon />}
