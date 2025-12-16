@@ -34,40 +34,27 @@ export default function Drive() {
 
   const handleFileClick = async (file) => {
     try {
-      const response = await api.get(`/api/files/${file.id}/download`);
-
-      if (response.data.url) {
-        const link = document.createElement('a');
-        link.href = response.data.url;
-        link.setAttribute('download', file.filename);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-
-        setSnackbar({
-          open: true,
-          message: `Downloading ${file.filename}`,
-          severity: 'success'
-        });
-        return;
-      }
-
-      const blobResponse = await api.get(`/api/files/${file.id}/download`, {
+      const response = await api.get(`/api/files/${file.id}/download`, {
         responseType: 'blob',
       });
-      const url = window.URL.createObjectURL(new Blob([blobResponse.data]));
+      
+      let filename = file.filename;
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+?)"?$/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', file.filename);
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      setSnackbar({
-        open: true,
-        message: `Downloading ${file.filename}`,
-        severity: 'success'
-      });
     } catch (error) {
       console.error('Download failed:', error);
       setSnackbar({

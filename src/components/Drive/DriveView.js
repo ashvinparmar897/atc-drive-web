@@ -58,7 +58,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
   const [uploadError, setUploadError] = useState('');
   const [error, setError] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('driveViewMode') || 'grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [dragDropEnabled, setDragDropEnabled] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -393,7 +393,10 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
 
         <Tooltip title="Grid View">
           <IconButton
-            onClick={() => setViewMode('grid')}
+            onClick={() => {
+              setViewMode('grid');
+              localStorage.setItem('driveViewMode', 'grid');
+            }}
             color={viewMode === 'grid' ? 'primary' : 'default'}
           >
             <GridIcon />
@@ -401,7 +404,10 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
         </Tooltip>
         <Tooltip title="List View">
           <IconButton
-            onClick={() => setViewMode('list')}
+            onClick={() => {
+              setViewMode('list');
+              localStorage.setItem('driveViewMode', 'list');
+            }}
             color={viewMode === 'list' ? 'primary' : 'default'}
           >
             <ListIcon />
@@ -495,7 +501,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
               sm={6} 
               md={4} 
               lg={3} 
-              key={item.id}
+              key={`${item.type}-${item.id}`}
               draggable={dragDropEnabled}
               onDragStart={dragDropEnabled ? (e) => handleDragStart(e, item, index) : undefined}
               onDragOver={dragDropEnabled ? handleDragOver : undefined}
@@ -548,7 +554,7 @@ export default function DriveView({ currentFolder, onFolderClick, onFileClick, o
               <TableBody>
                 {filteredAndSortedItems.map((item, index) => (
                   <TableRow 
-                    key={item.id} 
+                    key={`${item.type}-${item.id}`} 
                     hover 
                     selected={selectedItems.includes(item.id)}
                     draggable={dragDropEnabled}
